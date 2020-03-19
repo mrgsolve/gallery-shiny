@@ -1,0 +1,59 @@
+---
+title: "flexdashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: united
+runtime: shiny
+---
+
+```{r global}
+library(mrgsolve)
+library(dplyr)
+library(shiny)
+mod <- mread_cache("pk2-b",end = 120, delta = 0.25) 
+mod <- param(mod, ALAG1 = 2)
+```
+
+# Inputs {.sidebar}
+```{r}
+sliderInput("cl", "Clearance", min=0.2,max=3,step=0.25, value=1)
+sliderInput("v2", "Volume", min=5, max=50, value=20, step=5)
+selectizeInput("dose", "Dose (mg)", choices=seq(100,1000,100),selected=300,multiple=TRUE)
+selectizeInput("ii", "Interval", choices = c(4,6,8,12,24), selected=24)
+numericInput("total", "Doses", min = 1, max = 9, value = 2)
+sim <- reactive({
+  end <- 4*24 + as.numeric(input$ii) * as.numeric(input$total)
+  mod %>%
+    data_set(data()) %>%
+    param(
+      CL = as.numeric(input$cl), 
+      V2 = as.numeric(input$v2)
+    ) %>% 
+    mrgsim(digits=3, end =end)
+})
+data <- reactive({
+  expand.ev(
+    amt=as.numeric(input$dose), 
+    ii=as.numeric(input$ii), 
+    addl=as.numeric(input$total)-1
+  )
+})
+```
+
+# Plot
+
+## Column 1
+
+```{r}
+renderPlot({
+  plot(sim(),CP+CPERIPH~time)
+})
+```
+
+# Data
+
+```{r}
+renderTable({
+  return(mrgsolve::as.data.frame(sim()))
+})
+```
